@@ -1,1 +1,597 @@
-add
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>English Partner - Live Spoken Practice</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #eef2ff; /* Light indigo background */
+        }
+        .container-app {
+            max-width: 90%;
+            margin: 0 auto;
+        }
+        .chat-bubble {
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 20px;
+            margin-bottom: 15px;
+            position: relative;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        .user-bubble {
+            background-color: #4f46e5; /* Indigo-600 */
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 5px;
+        }
+        .ai-bubble {
+            background-color: #ffffff;
+            color: #1f2937; /* Gray-800 */
+            align-self: flex-start;
+            border: 1px solid #e5e7eb;
+            border-bottom-left-radius: 5px;
+        }
+        .mic-button {
+            transition: all 0.2s ease-in-out;
+        }
+        .recording {
+            animation: pulse-red 1.5s infinite;
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); /* Red pulse effect */
+        }
+        @keyframes pulse-red {
+            0% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 15px rgba(239, 68, 68, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app" class="min-h-screen py-8">
+        <div class="container-app bg-white shadow-2xl rounded-3xl p-6 md:p-8 border border-indigo-100">
+
+            <header class="text-center mb-6">
+                <h1 class="text-3xl font-extrabold text-indigo-700 flex items-center justify-center">
+                    <i class="fas fa-comments text-indigo-500 mr-3"></i>
+                    English Partner
+                </h1>
+                <p class="text-gray-500 mt-1">Live AI Voice Coach and Translator</p>
+            </header>
+            
+            <!-- User ID Display (Firestore requirement) -->
+            <p id="user-id-display" class="text-xs text-right text-gray-400 mb-4 truncate">Initializing...</p>
+
+            <!-- Translator Section (NEW FEATURE) -->
+            <div class="bg-purple-50 p-4 rounded-xl shadow-md mb-8">
+                <h2 class="text-xl font-bold text-purple-700 mb-3 flex items-center">
+                    ✨ हिंदी अनुवादक (Hindi-to-English Translator)
+                </h2>
+                <textarea id="hindi-input" rows="2" placeholder="यहां हिंदी में टाइप करें, जैसे: 'मैं आज बहुत खुश हूँ।'"
+                    class="w-full p-3 border border-purple-300 rounded-lg focus:ring-purple-500 focus:border-purple-500 transition duration-150 shadow-sm mb-3"></textarea>
+                
+                <div class="flex items-center justify-between">
+                    <button id="translate-button"
+                        class="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg shadow-md hover:bg-purple-700 transition duration-300 disabled:bg-purple-400">
+                        <i class="fas fa-language mr-2"></i>
+                        अनुवाद करें (Translate)
+                    </button>
+                    <div id="translation-output" class="text-gray-700 italic text-sm"></div>
+                    <button id="speak-translation-button" disabled
+                        class="px-3 py-2 bg-indigo-500 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-600 transition duration-300 disabled:bg-indigo-300">
+                        <i class="fas fa-volume-up"></i>
+                    </button>
+                </div>
+                <div id="translation-loading-spinner" class="hidden text-center mt-3 text-purple-600 text-sm">
+                     <i class="fas fa-circle-notch animate-spin mr-2"></i> अनुवाद हो रहा है...
+                </div>
+            </div>
+
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">🎤 लाइव वॉयस प्रैक्टिस (Live Voice Practice)</h2>
+
+            <!-- Chat Area -->
+            <div id="chat-area" class="bg-indigo-50 p-4 md:p-6 h-[400px] overflow-y-auto flex flex-col space-y-4 rounded-xl shadow-inner mb-6">
+                <!-- Initial Welcome Message -->
+                <div class="ai-bubble self-start">
+                    <p class="font-semibold text-indigo-700">English Partner</p>
+                    <p class="mt-1">Hello! I am your AI language coach. Let's practice speaking. Press the mic button and start talking. I will give you real-time grammar and fluency feedback!</p>
+                </div>
+            </div>
+
+            <!-- Input and Control Area -->
+            <div class="flex flex-col items-center">
+                
+                <!-- Status/Hint Area -->
+                <div id="status-message" class="text-sm font-medium text-gray-600 mb-4 h-6">
+                    Ready to practice.
+                </div>
+                
+                <!-- Microphone Button -->
+                <button id="mic-button"
+                    class="mic-button w-20 h-20 bg-indigo-600 text-white rounded-full flex items-center justify-center text-3xl shadow-xl hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition duration-150">
+                    <i id="mic-icon" class="fas fa-microphone"></i>
+                </button>
+                <p class="text-sm text-gray-500 mt-2" id="mic-hint">Press to Start Speaking</p>
+                
+                <!-- Error Message Box -->
+                <div id="error-message" class="hidden mt-4 p-3 bg-red-100 text-red-700 rounded-lg border border-red-300 w-full text-center">
+                    <p class="font-semibold text-sm flex items-center justify-center">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                        <span id="error-text"></span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Feedback Area (for detailed results) -->
+            <div id="detailed-feedback" class="mt-6 pt-4 border-t border-gray-200 hidden">
+                <h3 class="text-xl font-bold text-indigo-700 mb-3">Live Feedback</h3>
+                <div id="feedback-content" class="bg-white p-4 rounded-lg border border-gray-200 text-sm">
+                    <!-- Detailed feedback will be inserted here -->
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script type="module">
+        // --- Firebase/Auth Setup (Mandatory Boilerplate) ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables provided by the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth;
+        let userId = null;
+        let isAuthReady = false;
+
+        if (firebaseConfig) {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            setLogLevel('debug');
+        }
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+            } else {
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    userId = auth.currentUser?.uid;
+                } catch (error) {
+                    console.error("Firebase Auth Error:", error);
+                }
+            }
+            isAuthReady = true;
+            document.getElementById('user-id-display').textContent = `User ID: ${userId || 'N/A'}`;
+        });
+        // ---------------------------------------------------
+
+
+        // --- Gemini API Configuration ---
+        const API_KEY = "";
+        const MODEL_NAME = "gemini-2.5-flash-preview-09-2025";
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
+        const TTS_MODEL_NAME = "gemini-2.5-flash-preview-tts";
+        const TTS_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL_NAME}:generateContent?key=${API_KEY}`;
+
+        // System Instruction 1: For Spoken Text Analysis
+        const ANALYSIS_SYSTEM_PROMPT = `You are a friendly and patient English coach specifically for beginners. 
+        Your task is to analyze the user's spoken text (which will be provided as a transcription). 
+        
+        1.  **Immediate Problem Identification:** Point out the main error (grammar, tense, or unnatural phrasing) clearly and simply.
+        2.  **Correction and Explanation:** Provide the correct sentence and a brief, beginner-friendly explanation of *why* the correction was made (e.g., "Use the past tense verb 'went'").
+        3.  **Encouragement:** End with a simple, encouraging phrase.
+        
+        Format your response strictly as follows (in English):
+        
+        Problem: [Simple description of the error, e.g., Tense mismatch]
+        Your Sentence: [User's transcribed sentence]
+        Correction: [The fluent, corrected sentence]
+        Explanation: [Brief reason for correction]
+        Encouragement: [Positive remark]
+        `;
+
+        // System Instruction 2: For Hindi to English Translation
+        const TRANSLATION_SYSTEM_PROMPT = `You are an expert language translator. The user will provide a phrase in Hindi. Your task is to provide a natural, contextually accurate English translation. Only output the English translation text, nothing else.`;
+
+
+        // --- State and UI Elements ---
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let lastTranslation = "";
+
+        const micButton = document.getElementById('mic-button');
+        const micIcon = document.getElementById('mic-icon');
+        const micHint = document.getElementById('mic-hint');
+        const chatArea = document.getElementById('chat-area');
+        const statusMessage = document.getElementById('status-message');
+        const errorMessageDiv = document.getElementById('error-message');
+        const errorText = document.getElementById('error-text');
+        const feedbackContent = document.getElementById('feedback-content');
+        const detailedFeedbackDiv = document.getElementById('detailed-feedback');
+        
+        // Translator UI elements
+        const hindiInput = document.getElementById('hindi-input');
+        const translateButton = document.getElementById('translate-button');
+        const translationOutput = document.getElementById('translation-output');
+        const speakTranslationButton = document.getElementById('speak-translation-button');
+        const translationLoadingSpinner = document.getElementById('translation-loading-spinner');
+
+
+        // --- Utility Functions ---
+        
+        /**
+         * Converts base64 PCM data to a playable WAV blob.
+         * The API returns L16 (Signed 16-bit Little-endian PCM) audio data.
+         */
+        function base64ToArrayBuffer(base64) {
+            const binaryString = atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        function pcmToWav(pcm16, sampleRate) {
+            const numChannels = 1;
+            const bytesPerSample = 2; // 16-bit
+            const blockAlign = numChannels * bytesPerSample;
+            const byteRate = sampleRate * blockAlign;
+
+            const buffer = new ArrayBuffer(44 + pcm16.length * bytesPerSample);
+            const view = new DataView(buffer);
+
+            // RIFF chunk descriptor
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + pcm16.length * bytesPerSample, true);
+            writeString(view, 8, 'WAVE');
+            // FMT chunk
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true); // chunkSize
+            view.setUint16(20, 1, true); // wFormatTag (PCM)
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, byteRate, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, 16, true); // bitsPerSample
+            // Data chunk
+            writeString(view, 36, 'data');
+            view.setUint32(40, pcm16.length * bytesPerSample, true);
+            
+            // Write PCM data
+            let offset = 44;
+            for (let i = 0; i < pcm16.length; i++, offset += 2) {
+                view.setInt16(offset, pcm16[i], true);
+            }
+
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        /**
+         * Plays the audio data returned from the Gemini TTS API.
+         * @param {string} textToSpeak - The text to be converted to speech.
+         * @param {string} voiceName - The voice to use (e.g., 'Charon', 'Kore').
+         */
+        async function playTTS(textToSpeak, voiceName = "Charon") {
+            const audio = new Audio();
+            try {
+                const payload = {
+                    contents: [{
+                        parts: [{ text: textToSpeak }]
+                    }],
+                    generationConfig: {
+                        responseModalities: ["AUDIO"],
+                        speechConfig: {
+                            voiceConfig: {
+                                prebuiltVoiceConfig: { voiceName: voiceName } 
+                            }
+                        }
+                    },
+                };
+
+                const response = await fetch(TTS_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error("TTS API failed.");
+
+                const result = await response.json();
+                const part = result?.candidates?.[0]?.content?.parts?.[0];
+                const audioData = part?.inlineData?.data;
+                const mimeType = part?.inlineData?.mimeType;
+                
+                if (audioData && mimeType && mimeType.startsWith("audio/L16")) {
+                    const rateMatch = mimeType.match(/rate=(\d+)/);
+                    const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+                    
+                    const pcmData = base64ToArrayBuffer(audioData);
+                    const pcm16 = new Int16Array(pcmData);
+                    const wavBlob = pcmToWav(pcm16, sampleRate);
+                    const audioUrl = URL.createObjectURL(wavBlob);
+                    
+                    audio.src = audioUrl;
+                    audio.play();
+                } else {
+                    console.error("TTS response missing audio data or invalid mime type.");
+                }
+
+            } catch (e) {
+                console.error("TTS Playback Error:", e);
+            }
+            return audio;
+        }
+
+        /**
+         * Generic Gemini API caller with backoff.
+         * @param {string} userQuery - The main query text.
+         * @param {string} systemPrompt - The role instruction for the AI.
+         */
+        async function callGeminiAPI(userQuery, systemPrompt) {
+             const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                }
+            };
+
+            const MAX_RETRIES = 3;
+            for (let i = 0; i < MAX_RETRIES; i++) {
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 429 && i < MAX_RETRIES - 1) {
+                            const delay = Math.pow(2, i) * 1000 + Math.random() * 500;
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            continue;
+                        }
+                        throw new Error(`API request failed with status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    const text = result.candidates?.[0]?.content?.parts?.[0]?.text.trim();
+
+                    if (!text) throw new Error("Received empty response.");
+                    return text;
+
+                } catch (error) {
+                    console.error(`Attempt ${i + 1} failed:`, error);
+                    if (i === MAX_RETRIES - 1) throw new Error("AI communication failed.");
+                }
+            }
+        }
+
+        /**
+         * Appends a chat bubble to the chat area.
+         */
+        function appendChat(role, content) {
+            const bubbleClass = role === 'user' ? 'user-bubble self-end' : 'ai-bubble self-start';
+            const html = `
+                <div class="${bubbleClass}">
+                    ${role === 'ai' ? '<p class="font-semibold text-indigo-700">English Partner</p>' : ''}
+                    <p class="mt-1">${content}</p>
+                </div>
+            `;
+            chatArea.innerHTML += html;
+            // Scroll to bottom
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        // --- Live Voice Practice Logic ---
+        
+        async function getAnalysis(transcribedText) {
+            const userQuery = `Analyze this spoken sentence from a beginner: "${transcribedText}"`;
+            return callGeminiAPI(userQuery, ANALYSIS_SYSTEM_PROMPT);
+        }
+        
+        function displayFeedback(analysisText) {
+            const lines = analysisText.split('\n').filter(line => line.trim() !== '');
+            let parsed = {};
+            let currentKey = null;
+
+            lines.forEach(line => {
+                const parts = line.split(':');
+                if (parts.length > 1) {
+                    currentKey = parts[0].trim();
+                    parsed[currentKey] = parts.slice(1).join(':').trim();
+                } else if (currentKey) {
+                    parsed[currentKey] += " " + line.trim();
+                }
+            });
+
+            // 1. Update Detailed Feedback Area
+            let feedbackHtml = `<p class="text-red-600 font-semibold mb-2">Problem: ${parsed.Problem || 'N/A'}</p>`;
+            feedbackHtml += `<p class="mb-2"><span class="font-medium text-gray-700">Your Sentence:</span> <span class="text-indigo-600 font-italic">"${parsed['Your Sentence'] || parsed['Your Sentence'] || 'N/A'}"</span></p>`;
+            feedbackHtml += `<p class="mb-2"><span class="font-medium text-gray-700">Correction:</span> <span class="text-green-600 font-semibold">"${parsed.Correction || 'N/A'}"</span></p>`;
+            feedbackHtml += `<p class="mb-0"><span class="font-medium text-gray-700">Explanation:</span> ${parsed.Explanation || 'N/A'}</p>`;
+            feedbackContent.innerHTML = feedbackHtml;
+            detailedFeedbackDiv.classList.remove('hidden');
+
+            // 2. Update Chat Area
+            const aiChatResponse = `
+                <p><strong>Correction:</strong> ${parsed.Correction || 'N/A'}</p>
+                <p class="text-sm text-gray-600">(${parsed.Explanation || 'N/A'})</p>
+                <p class="mt-2 italic text-sm text-green-700">${parsed.Encouragement || 'Keep practicing!'}</p>
+            `;
+            appendChat('ai', aiChatResponse);
+
+            // 3. Play corrected sentence using TTS
+            if (parsed.Correction) {
+                 playTTS(parsed.Correction, "Kore"); // Using a firm, clear voice for correction
+            }
+        }
+
+        // --- Voice Recording Logic (Unchanged) ---
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm; codecs=opus' });
+                    
+                    statusMessage.textContent = "Processing... (Simulating transcription)";
+                    const simulationInput = prompt("Transcription is not supported in the browser sandbox. Please type what you just said:");
+
+                    if (simulationInput) {
+                        handleTranscription(simulationInput);
+                    } else {
+                        statusMessage.textContent = "Practice stopped. Start again.";
+                    }
+                    
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                micButton.classList.add('recording');
+                micIcon.classList.remove('fa-microphone');
+                micIcon.classList.add('fa-stop-circle');
+                micHint.textContent = "Recording... Press to Stop";
+                statusMessage.textContent = "Listening to you... Say something in English!";
+
+            } catch (err) {
+                console.error("Error accessing microphone:", err);
+                errorText.textContent = "Cannot access microphone. Please check permissions.";
+                errorMessageDiv.classList.remove('hidden');
+                micButton.disabled = true;
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                isRecording = false;
+                micButton.classList.remove('recording');
+                micIcon.classList.remove('fa-stop-circle');
+                micIcon.classList.add('fa-microphone');
+                micHint.textContent = "Processing Feedback...";
+            }
+        }
+
+        async function handleTranscription(transcribedText) {
+            appendChat('user', transcribedText);
+            statusMessage.textContent = "Analyzing your English with AI...";
+            
+            try {
+                const analysisResult = await getAnalysis(transcribedText);
+                displayFeedback(analysisResult);
+                statusMessage.textContent = "Feedback ready! Press the mic to practice again.";
+            } catch (e) {
+                errorText.textContent = `AI Analysis Error: ${e.message}`;
+                errorMessageDiv.classList.remove('hidden');
+                statusMessage.textContent = "Practice stopped due to error.";
+            }
+        }
+
+        micButton.addEventListener('click', () => {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                errorMessageDiv.classList.add('hidden');
+                startRecording();
+            }
+        });
+
+        // --- Hindi Translator Logic (NEW) ---
+        async function handleTranslation() {
+            const hindiText = hindiInput.value.trim();
+            if (!hindiText) {
+                translationOutput.textContent = "कृपया हिंदी में कुछ टाइप करें।";
+                speakTranslationButton.disabled = true;
+                return;
+            }
+
+            translateButton.disabled = true;
+            speakTranslationButton.disabled = true;
+            translationOutput.textContent = "";
+            translationLoadingSpinner.classList.remove('hidden');
+
+            try {
+                const englishTranslation = await callGeminiAPI(hindiText, TRANSLATION_SYSTEM_PROMPT);
+                
+                // Save the translation globally for the speak button
+                lastTranslation = englishTranslation;
+                
+                translationOutput.innerHTML = `<span class="font-semibold text-purple-800">English:</span> ${englishTranslation}`;
+                speakTranslationButton.disabled = false;
+                
+            } catch (e) {
+                translationOutput.textContent = `अनुवाद में त्रुटि: ${e.message}`;
+                console.error("Translation Error:", e);
+            } finally {
+                translateButton.disabled = false;
+                translationLoadingSpinner.classList.add('hidden');
+            }
+        }
+
+        function handleSpeakTranslation() {
+            if (lastTranslation) {
+                // Using a brighter, more engaging voice for learning new phrases
+                playTTS(lastTranslation, "Leda"); 
+            }
+        }
+
+        translateButton.addEventListener('click', handleTranslation);
+        speakTranslationButton.addEventListener('click', handleSpeakTranslation);
+
+
+        // --- Initialization ---
+        window.onload = () => {
+             // Initial check for mic access for a better user experience
+             navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(() => {
+                    statusMessage.textContent = "Mic access granted. Start your English practice!";
+                })
+                .catch(err => {
+                    errorText.textContent = "Microphone access denied. You must grant permission to use voice features.";
+                    errorMessageDiv.classList.remove('hidden');
+                    micButton.disabled = true;
+                });
+        };
+
+    </script>
+</body>
+</html>
